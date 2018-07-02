@@ -163,17 +163,17 @@ if __name__ == "__main__":
     # I AM NOT REALLY USING ANY EVOLUTIONARY ALGORITHM HERE. THE EVO CLASS IS JUST BEING USED TO INITIALIZE PID CLASS
     # make sure the pd_target is also manually copied in the reward function
     # evo.initialize_gains()
-    evo.population[0].kp = 500
-    evo.population[0].kd = 10
+    evo.population[0].kp = 300
+    evo.population[0].kd = 50
 
     evo_state = torch.Tensor([env.reset()])
     evo_episode_reward = 0
     position_array = []    # for visualization
     target_array = []
     print("Num steps = " + str(args.num_steps))
-    for t in range(1000):
+    for t in range(3000):
         evo_state = evo_state.data.numpy()[0]
-        position = evo_state.data[0]
+        position = evo_state
         position_array.append(position)
         target_array.append(pd_target)
 
@@ -182,7 +182,6 @@ if __name__ == "__main__":
         evo_episode_reward += evo_reward
 
         evo_next_state = torch.Tensor([evo_next_state])
-
         evo_state = copy.copy(evo_next_state)
         #
         # if ep % 20 == 0:

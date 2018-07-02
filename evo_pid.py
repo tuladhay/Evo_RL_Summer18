@@ -27,11 +27,11 @@ def parse_arguments():
                         help='random seed (default: 4)')
     parser.add_argument('--num_steps', type=int, default=1000, metavar='N',
                         help='max episode length (default: 1000)')
-    parser.add_argument('--num_episodes', type=int, default=10, metavar='N',
+    parser.add_argument('--num_episodes', type=int, default=100, metavar='N',
                         help='number of episodes (default: 1000)')
     parser.add_argument('--render', action='store_true',
                         help='render the environment')
-    parser.add_argument('--population_size', type=int, default=1, metavar='N',
+    parser.add_argument('--population_size', type=int, default=200, metavar='N',
                         help='population size (default: 100)')
 
 
@@ -82,15 +82,12 @@ class Evo:
                 evo_episode_reward = 0
                 for t in range(args.num_steps):
                     evo_state = evo_state.data.numpy()[0]
-                    position = evo_state.data[0]
+                    position = evo_state
                     evo_action = gene.compute_pd_output(position)
                     evo_next_state, evo_reward, evo_done, _ = env.step(evo_action)
                     evo_episode_reward += evo_reward
 
                     evo_next_state = torch.Tensor([evo_next_state])
-                    # evo_reward = torch.Tensor([evo_reward])
-
-                    # memory.push(evo_state, evo_action, evo_mask, evo_next_state, evo_reward)
                     evo_state = copy.copy(evo_next_state)
                     #
                     # if ep % 20 == 0:
@@ -174,6 +171,7 @@ if __name__ == "__main__":
     evo = Evo(args.population_size, pd_target, delta)    # initializes population with the target and delta
     # make sure the pd_target is also manually copied in the reward function
     evo.initialize_gains()
+    print("Population size = " + str(args.population_size))
 
     rewards = []  # recorded during training rollout
     rewards_testing = []  # This appends to a list so that the progress across episodes can be plotted
@@ -210,7 +208,7 @@ if __name__ == "__main__":
     print("Num steps = " + str(args.num_steps))
     for t in range(1000):
         state = state.data.numpy()[0]
-        position = state.data[0]
+        position = state
         position_array.append(position)
         target_array.append(pd_target)
 
@@ -219,7 +217,6 @@ if __name__ == "__main__":
         episode_reward += reward
 
         next_state = torch.Tensor([next_state])
-
         state = copy.copy(next_state)
 
         # env.render()
@@ -228,6 +225,11 @@ if __name__ == "__main__":
 
     plt.plot(position_array)
     plt.plot(target_array)
-    plt.title("PID response")
+    plt.title("PID response for Kp: " + str(evo.best_policy.kp) + " Kd: " + str(evo.best_policy.kd))
     plt.show()
+
+    plt.plot(evo.save_fitness)
+    plt.title("Best gene fitness vs epochs")
+    plt.show()
+
 
