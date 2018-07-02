@@ -20,7 +20,7 @@ class PD:
         delta_error = error - self.previous_error
         output = -self.kp*error - self.kd*(delta_error/self.delta)
         self.previous_error = error
-        print("output = " + str(output))
+        # print("output = " + str(output))
         return output
 
     def set_gains(self, kp, kd):

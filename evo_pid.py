@@ -15,41 +15,24 @@ from replay_memory import ReplayMemory, Transition
 import pickle
 from pid import PD
 import random
+import matplotlib.pyplot as plt
 
 
 def parse_arguments():
     global parser
-    parser = argparse.ArgumentParser(description='PyTorch REINFORCE example')
-    parser.add_argument('--algo', default='DDPG',
-                        help='algorithm to use: DDPG | NAF')
+    parser = argparse.ArgumentParser(description='PID tuning using evolutionary algorithm')
     parser.add_argument('--env-name', default="HalfCheetah-v2",
                         help='name of the environment to run')
-    parser.add_argument('--gamma', type=float, default=0.99, metavar='G',
-                        help='discount factor for reward (default: 0.99)')
-    parser.add_argument('--tau', type=float, default=0.001, metavar='G',
-                        help='discount factor for model (default: 0.001)')
-    parser.add_argument('--noise_scale', type=float, default=0.3, metavar='G',
-                        help='initial noise scale (default: 0.3)')
-    parser.add_argument('--final_noise_scale', type=float, default=0.3, metavar='G',
-                        help='final noise scale (default: 0.3)')
-    parser.add_argument('--exploration_end', type=int, default=100, metavar='N',
-                        help='number of episodes with noise (default: 100)')
     parser.add_argument('--seed', type=int, default=4, metavar='N',
                         help='random seed (default: 4)')
-    parser.add_argument('--batch_size', type=int, default=128, metavar='N',
-                        help='batch size (default: 128)')
-    parser.add_argument('--num_steps', type=int, default=10000, metavar='N',
+    parser.add_argument('--num_steps', type=int, default=1000, metavar='N',
                         help='max episode length (default: 1000)')
-    parser.add_argument('--num_episodes', type=int, default=100, metavar='N',
+    parser.add_argument('--num_episodes', type=int, default=10, metavar='N',
                         help='number of episodes (default: 1000)')
-    parser.add_argument('--hidden_size', type=int, default=128, metavar='N',
-                        help='number of episodes (default: 128)')
-    parser.add_argument('--updates_per_step', type=int, default=5, metavar='N',
-                        help='model updates per simulator step (default: 5)')
-    parser.add_argument('--replay_size', type=int, default=1000000, metavar='N',
-                        help='size of replay buffer (default: 1000000)')
     parser.add_argument('--render', action='store_true',
                         help='render the environment')
+    parser.add_argument('--population_size', type=int, default=1, metavar='N',
+                        help='population size (default: 100)')
 
 
 class Evo:
@@ -74,10 +57,12 @@ class Evo:
         self.elite_percentage = 0.1
         self.tournament_percentage = 0.25
         self.num_elites = int(self.elite_percentage * self.num_actors)
+        if self.num_elites < 1:
+            self.num_elites = 1
         self.tournament_genes = int(self.tournament_percentage * self.num_actors)
 
         self.noise_mean = 0.0
-        self.noise_stddev = 0.1
+        self.noise_stddev = 0.2
 
         self.save_fitness = []
         self.best_policy = copy.deepcopy(self.population[0])  # for saving policy purposes
@@ -102,9 +87,6 @@ class Evo:
                     evo_next_state, evo_reward, evo_done, _ = env.step(evo_action)
                     evo_episode_reward += evo_reward
 
-                    # evo_action = torch.Tensor(evo_action)
-                    # evo_mask = torch.Tensor([not evo_done])
-                    # evo_mask = torch.Tensor([not evo_done])
                     evo_next_state = torch.Tensor([evo_next_state])
                     # evo_reward = torch.Tensor([evo_reward])
 
@@ -113,12 +95,9 @@ class Evo:
                     #
                     # if ep % 20 == 0:
                     #     env.render()
-                    env.render()
 
-                    if evo_done:
-                        print("Done")
-                        break
-                    # evo_state = evo_state.data.numpy()[0]
+                    # env.render()
+
                     # <end of time-steps>
                 fitness.append(evo_episode_reward)
                 # <end of episodes>
@@ -191,24 +170,24 @@ if __name__ == "__main__":
     Initialize the Evolution Part
     #############################
     '''
-    evo = Evo(10, pd_target, delta)    # initializes population with the target and delta
+
+    evo = Evo(args.population_size, pd_target, delta)    # initializes population with the target and delta
     # make sure the pd_target is also manually copied in the reward function
     evo.initialize_gains()
 
-    # TODO: MOVE THE TRAINING CODE BELOW TO ITS RESPECTIVE FUNCTIONS
-    rewards = []  # during training
+    rewards = []  # recorded during training rollout
     rewards_testing = []  # This appends to a list so that the progress across episodes can be plotted
 
     print("Number of episodes : " + str(args.num_episodes))
     for i_episode in range(args.num_episodes):
         '''
         Here, num_episodes correspond to the generations in Algo 1.
-        In every generation, the population is evaluated, ranked, mutated, and re-instered into population
+        In every generation, the population is evaluated, ranked, mutated, and re-inserted into population
         '''
         evo.evaluate_pop()
         evo.rank_pop_selection_mutation()
 
-        print("Episode: "+str(i_episode) + "    Training Fitness = " + str(evo.best_policy.fitness))
+        print("Episode: "+str(i_episode) + "    Fitness = " + str(evo.best_policy.fitness))
 
     env.close()
 
@@ -218,3 +197,37 @@ if __name__ == "__main__":
 
     print("The best performing PD values were: ")
     print("Kp = " + str(evo.best_policy.kp) + "\nKd = " + str(evo.best_policy.kd))
+
+    """
+    ################
+    TEST RUN
+    ################
+    """
+    state = torch.Tensor([env.reset()])
+    episode_reward = 0
+    position_array = []  # for visualization
+    target_array = []
+    print("Num steps = " + str(args.num_steps))
+    for t in range(1000):
+        state = state.data.numpy()[0]
+        position = state.data[0]
+        position_array.append(position)
+        target_array.append(pd_target)
+
+        action = evo.best_policy.compute_pd_output(position)
+        next_state, reward, done, _ = env.step(action)
+        episode_reward += reward
+
+        next_state = torch.Tensor([next_state])
+
+        state = copy.copy(next_state)
+
+        # env.render()
+
+    env.close()
+
+    plt.plot(position_array)
+    plt.plot(target_array)
+    plt.title("PID response")
+    plt.show()
+
